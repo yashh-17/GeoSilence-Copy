@@ -16,6 +16,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 import androidx.appcompat.widget.Toolbar;
+import androidx.appcompat.app.AlertDialog;
 
 
 import androidx.annotation.NonNull;
@@ -76,12 +77,7 @@ public class MainActivity extends AppCompatActivity implements OnCompleteListene
             });
 
             //Requesting the permissions
-            if ((Build.VERSION.SDK_INT >= 23)) {
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS) != PackageManager.PERMISSION_GRANTED) {
-                    String[] permissions = new String[]{Manifest.permission.MODIFY_AUDIO_SETTINGS, Manifest.permission.ACCESS_FINE_LOCATION};
-                    ActivityCompat.requestPermissions(this, permissions, 777);
-                }
-            }
+            requestPermissionsIfNeeded();
 
             //Requesting permission to change Audio Settings
             NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -251,4 +247,57 @@ public class MainActivity extends AppCompatActivity implements OnCompleteListene
         }
     }
 
+    private static final int FOREGROUND_PERMISSIONS_REQUEST_CODE = 777;
+    private static final int BACKGROUND_LOCATION_PERMISSION_REQUEST_CODE = 778;
+
+    private void requestPermissionsIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    || ActivityCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS) != PackageManager.PERMISSION_GRANTED) {
+                String[] permissions = {Manifest.permission.MODIFY_AUDIO_SETTINGS, Manifest.permission.ACCESS_FINE_LOCATION};
+                ActivityCompat.requestPermissions(this, permissions, FOREGROUND_PERMISSIONS_REQUEST_CODE);
+            } else {
+                checkBackgroundLocationPermission();
+            }
+        }
+    }
+
+    private void checkBackgroundLocationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Background Location Permission")
+                        .setMessage("This app requires background location access to automatically silence your phone. Please grant this permission.")
+                        .setPositiveButton("Grant", (dialog, which) -> ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, BACKGROUND_LOCATION_PERMISSION_REQUEST_CODE))
+                        .setNegativeButton("Deny", null)
+                        .show();
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == FOREGROUND_PERMISSIONS_REQUEST_CODE) {
+            boolean fineLocationGranted = false;
+            for (int i = 0; i < permissions.length; i++) {
+                if (permissions[i].equals(Manifest.permission.ACCESS_FINE_LOCATION) && grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                    fineLocationGranted = true;
+                    break;
+                }
+            }
+
+            if (fineLocationGranted) {
+                checkBackgroundLocationPermission();
+            } else {
+                Toast.makeText(this, "Fine location permission is required for this app to work.", Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == BACKGROUND_LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Background location permission granted.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Background location permission is required for the app to work automatically.", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
 }
